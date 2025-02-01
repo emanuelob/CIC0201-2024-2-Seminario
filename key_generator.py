@@ -41,27 +41,30 @@ def generate_large_prime(bits):
 
 # Geração de chaves RSA
 def generate_keys(bits=1024):
-    while True:
-        print("Gerando p...")
-        p = generate_large_prime(bits)
-        print(f'P gerado com {bits} bits')
+    print("Gerando número primo p...")
+    p = generate_large_prime(bits)
+    print(f"P gerado: {p} ({bits} bits)")
 
-        print("Gerando q...")
+    print("Gerando número primo q...")
+    q = generate_large_prime(bits)
+    while p == q:  # Garante que p e q são diferentes
+        print("Primos iguais, gerando um novo q...")
         q = generate_large_prime(bits)
-        print(f'Q gerado com {bits} bits')
+    print(f"Q gerado: {q} ({bits} bits)")
 
-        if p == q:
-            print("Primos iguais, gerando novamente...")
-            continue  # Garante que p e q são diferentes
+    n = p * q
+    phi = (p - 1) * (q - 1)
+    print(f"Modulus n = p * q: {n}")
+    print(f"Totiente de Euler φ(n): {phi}")
 
-        n = p * q
-        phi = (p - 1) * (q - 1)
+    e = 65537
+    while gcd(e, phi) != 1:  # Se não for coprimo, escolha outro `e`
+        print(f"e={e} não é coprimo com φ(n), escolhendo outro valor...")
+        e = random.randint(2, phi - 1)
 
-        e = 65537
-        if gcd(e, phi) == 1:  # Apenas seguimos se e for coprimo de φ(n)
-            break
+    print(f"Expoente público escolhido: e={e}")
 
-    # Calcula d (inverso modular de e mod phi)
-    d = pow(e, -1, phi)
+    d = pow(e, -1, phi)  # Calcula d como o inverso modular de e
+    print(f"Expoente privado calculado: d={d}")
 
     return (e, n), (d, n)

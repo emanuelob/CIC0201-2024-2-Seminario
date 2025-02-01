@@ -5,7 +5,7 @@ import hashlib
 def i2osp(x, l):
     """ Converte um inteiro x em uma string de octetos de comprimento l """
     if x >= 256**l:
-        raise ValueError("Inteiro muito grande")
+        raise ValueError("Inteiro muito grande para conversão")
     return x.to_bytes(l, byteorder='big')
 
 # Função para converter uma string de octetos em um inteiro (OS2IP)
@@ -35,7 +35,10 @@ def oaep_encode(message, label, k, hash_func=hashlib.sha3_256):
     lHash = hash_func(label).digest()
     PS = b'\x00' * (k - mLen - 2 * hLen - 2)
     DB = lHash + PS + b'\x01' + message
-    seed = random.randbytes(hLen)
+
+    # Corrigindo para Python 3.8+ (evitando `randbytes()`)
+    seed = random.getrandbits(hLen * 8).to_bytes(hLen, 'big')
+
     dbMask = mgf1(seed, k - hLen - 1, hash_func)
     maskedDB = bytes(x ^ y for x, y in zip(DB, dbMask))
     seedMask = mgf1(maskedDB, hLen, hash_func)
@@ -53,24 +56,24 @@ def oaep_decode(encoded_message, label, k, hash_func=hashlib.sha3_256):
     hLen = hash_func().digest_size
     if len(encoded_message) != k:
         raise ValueError("Erro na decodificação")
-    
+
     maskedSeed = encoded_message[1:hLen+1]
     maskedDB = encoded_message[hLen+1:]
     seedMask = mgf1(maskedDB, hLen, hash_func)
     seed = bytes(x ^ y for x, y in zip(maskedSeed, seedMask))
     dbMask = mgf1(seed, k - hLen - 1, hash_func)
     DB = bytes(x ^ y for x, y in zip(maskedDB, dbMask))
-    
+
     lHash = hash_func(label).digest()
     if DB[:hLen] != lHash:
-        raise ValueError("Erro na decodificação")
-    
+        raise ValueError("Erro na decodificação: Hash do label incorreto")
+
     i = hLen
     while i < len(DB) and DB[i] == 0:
         i += 1
-    if DB[i] != 1:
-        raise ValueError("Erro na decodificação")
-    
+    if i >= len(DB) or DB[i] != 1:
+        raise ValueError("Erro na decodificação: Padding inválido")
+
     mensagem_decodificada = DB[i+1:]
     print("Mensagem decodificada:", mensagem_decodificada.hex())
     return mensagem_decodificada
@@ -82,6 +85,10 @@ def rsa_encrypt(public_key, message, label=b"", hash_func=hashlib.sha3_256):
     k = (n.bit_length() + 7) // 8
     encoded_message = oaep_encode(message, label, k, hash_func)
     m = os2ip(encoded_message)
+
+    if m >= n:
+        raise ValueError("Mensagem codificada maior que o módulo n")
+
     c = pow(m, e, n)
     
     print("Mensagem codificada (inteiro):", m)
@@ -95,6 +102,10 @@ def rsa_decrypt(private_key, ciphertext, label=b"", hash_func=hashlib.sha3_256):
     d, n = private_key
     k = (n.bit_length() + 7) // 8
     c = os2ip(ciphertext)
+
+    if c >= n:
+        raise ValueError("Texto cifrado inválido (maior que n)")
+
     m = pow(c, d, n)
     encoded_message = i2osp(m, k)
     
